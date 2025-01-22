@@ -14,6 +14,11 @@ describe("TerraDrawPointMode", () => {
 
 		it("constructs with options", () => {
 			const pointMode = new TerraDrawPointMode({
+				cursors: {
+					create: "crosshair",
+					dragStart: "grabbing",
+					dragEnd: "crosshair",
+				},
 				styles: { pointOutlineColor: "#ffffff" },
 			});
 			expect(pointMode.styles).toStrictEqual({
@@ -180,7 +185,7 @@ describe("TerraDrawPointMode", () => {
 	});
 
 	describe("cleanUp", () => {
-		it("does nothing", () => {
+		it("does not throw", () => {
 			const pointMode = new TerraDrawPointMode();
 
 			expect(() => {
@@ -189,36 +194,232 @@ describe("TerraDrawPointMode", () => {
 		});
 	});
 
-	describe("onDrag", () => {
-		it("does nothing", () => {
-			const pointMode = new TerraDrawPointMode();
+	describe("onDragStart", () => {
+		it("sets the cursor on drag starting", () => {
+			const pointMode = new TerraDrawPointMode({
+				editable: false,
+			});
 
-			expect(() => {
-				pointMode.onDrag();
-			}).not.toThrow();
+			const mockConfig = MockModeConfig("point");
+
+			pointMode.register(mockConfig);
+
+			pointMode.onClick(MockCursorEvent({ lng: 0, lat: 0 }));
+
+			const setMapDraggability = jest.fn();
+			pointMode.onDragStart(
+				MockCursorEvent({ lng: 0, lat: 0 }),
+				setMapDraggability,
+			);
+
+			expect(mockConfig.setCursor).toHaveBeenCalledTimes(0);
+			expect(setMapDraggability).toHaveBeenCalledTimes(0);
+		});
+
+		it("sets the cursor on drag starting", () => {
+			const pointMode = new TerraDrawPointMode({
+				editable: true,
+			});
+
+			const mockConfig = MockModeConfig("point");
+
+			// Trigger the codepath which ignores none point geometries
+			mockConfig.store.create([
+				{
+					geometry: {
+						type: "Polygon",
+						coordinates: [
+							[
+								[0, 0],
+								[1, 0],
+								[1, 1],
+								[0, 1],
+								[0, 0],
+							],
+						],
+					},
+					properties: { mode: "polygon" },
+				},
+			]);
+
+			mockConfig.store.create([
+				{
+					geometry: {
+						type: "Point",
+						coordinates: [0.1, 0.1],
+					},
+					properties: { mode: "point" },
+				},
+			]);
+
+			mockConfig.store.create([
+				{
+					geometry: {
+						type: "Point",
+						coordinates: [0.2, 0.2],
+					},
+					properties: { mode: "point" },
+				},
+			]);
+
+			pointMode.register(mockConfig);
+
+			pointMode.onClick(MockCursorEvent({ lng: 0, lat: 0 }));
+
+			const setMapDraggability = jest.fn();
+			pointMode.onDragStart(
+				MockCursorEvent({ lng: 0, lat: 0 }),
+				setMapDraggability,
+			);
+
+			expect(mockConfig.setCursor).toHaveBeenCalledTimes(1);
+			expect(setMapDraggability).toHaveBeenCalledWith(false);
 		});
 	});
 
-	describe("onDragStart", () => {
-		it("does nothing", () => {
-			const pointMode = new TerraDrawPointMode();
+	describe("onDrag", () => {
+		it("sets the cursor on drag starting", () => {
+			const pointMode = new TerraDrawPointMode({
+				editable: true,
+			});
+			const mockConfig = MockModeConfig("point");
 
-			expect(() => {
-				pointMode.onDragStart();
-			}).not.toThrow();
+			pointMode.register(mockConfig);
+
+			const setMapDraggability = jest.fn();
+			pointMode.onDrag(MockCursorEvent({ lng: 0, lat: 0 }), setMapDraggability);
+		});
+
+		it("sets the cursor on drag starting", () => {
+			const pointMode = new TerraDrawPointMode({
+				editable: true,
+			});
+
+			const mockConfig = MockModeConfig("point");
+
+			pointMode.register(mockConfig);
+
+			pointMode.onClick(MockCursorEvent({ lng: 0, lat: 0 }));
+
+			const setMapDraggability = jest.fn();
+			pointMode.onDragStart(
+				MockCursorEvent({ lng: 0, lat: 0 }),
+				setMapDraggability,
+			);
+
+			pointMode.onDrag(MockCursorEvent({ lng: 0, lat: 1 }), setMapDraggability);
+
+			expect(mockConfig.onChange).toHaveBeenCalledTimes(3);
+			expect(mockConfig.onChange).toHaveBeenNthCalledWith(
+				2,
+				[expect.any(String)],
+				"update",
+			);
+		});
+
+		it("handles the falsy validation", () => {
+			let validations = 0;
+			const pointMode = new TerraDrawPointMode({
+				editable: true,
+				validation: () => {
+					validations++;
+					return {
+						valid: validations === 1,
+					};
+				},
+			});
+
+			const mockConfig = MockModeConfig("point");
+
+			pointMode.register(mockConfig);
+
+			pointMode.onClick(MockCursorEvent({ lng: 0, lat: 0 }));
+
+			const setMapDraggability = jest.fn();
+			pointMode.onDragStart(
+				MockCursorEvent({ lng: 0, lat: 0 }),
+				setMapDraggability,
+			);
+
+			pointMode.onDrag(MockCursorEvent({ lng: 0, lat: 1 }), setMapDraggability);
+
+			expect(mockConfig.onChange).toHaveBeenCalledTimes(1);
+			expect(mockConfig.onFinish).toHaveBeenCalledTimes(1);
+		});
+
+		it("handles the truthy validation", () => {
+			const pointMode = new TerraDrawPointMode({
+				editable: true,
+				validation: () => ({ valid: true }),
+			});
+
+			const mockConfig = MockModeConfig("point");
+
+			pointMode.register(mockConfig);
+
+			pointMode.onClick(MockCursorEvent({ lng: 0, lat: 0 }));
+
+			const setMapDraggability = jest.fn();
+			pointMode.onDragStart(
+				MockCursorEvent({ lng: 0, lat: 0 }),
+				setMapDraggability,
+			);
+
+			pointMode.onDrag(MockCursorEvent({ lng: 0, lat: 1 }), setMapDraggability);
+
+			expect(mockConfig.onChange).toHaveBeenCalledTimes(3);
 		});
 	});
 
 	describe("onDragEnd", () => {
-		it("does nothing", () => {
-			const pointMode = new TerraDrawPointMode();
+		it("doesn't set the cursor on dragging if nothing selected", () => {
+			const pointMode = new TerraDrawPointMode({
+				editable: true,
+			});
 
-			expect(() => {
-				pointMode.onDragEnd();
-			}).not.toThrow();
+			const mockConfig = MockModeConfig("point");
+
+			pointMode.register(mockConfig);
+
+			const setMapDraggability = jest.fn();
+			pointMode.onDragEnd(
+				MockCursorEvent({ lng: 0, lat: 0 }),
+				setMapDraggability,
+			);
+
+			expect(mockConfig.setCursor).toHaveBeenCalledTimes(0);
+			expect(setMapDraggability).toHaveBeenCalledTimes(0);
+		});
+
+		it("sets the cursor on drag starting", () => {
+			const pointMode = new TerraDrawPointMode({
+				editable: true,
+			});
+
+			const mockConfig = MockModeConfig("point");
+
+			pointMode.register(mockConfig);
+
+			pointMode.onClick(MockCursorEvent({ lng: 0, lat: 0 }));
+
+			const setMapDraggability = jest.fn();
+			pointMode.onDragStart(
+				MockCursorEvent({ lng: 0, lat: 0 }),
+				setMapDraggability,
+			);
+
+			pointMode.onDrag(MockCursorEvent({ lng: 1, lat: 0 }), setMapDraggability);
+
+			pointMode.onDragEnd(
+				MockCursorEvent({ lng: 1, lat: 0 }),
+				setMapDraggability,
+			);
+
+			expect(mockConfig.setCursor).toHaveBeenCalledTimes(2);
+			expect(setMapDraggability).toHaveBeenNthCalledWith(1, false);
+			expect(setMapDraggability).toHaveBeenNthCalledWith(2, true);
 		});
 	});
-
 	describe("styling", () => {
 		it("gets", () => {
 			const pointMode = new TerraDrawPointMode();
@@ -297,6 +498,42 @@ describe("TerraDrawPointMode", () => {
 				pointWidth: 4,
 				pointOutlineColor: "#111111",
 				pointOutlineWidth: 2,
+			});
+		});
+
+		it("returns the correct styles for edited point", () => {
+			const pointMode = new TerraDrawPointMode({
+				editable: true,
+				styles: {
+					editedPointColor: "#222222",
+					editedPointWidth: 3,
+					editedPointOutlineColor: "#555555",
+					editedPointOutlineWidth: 3,
+				},
+			});
+
+			const mockConfig = MockModeConfig("point");
+
+			pointMode.register(mockConfig);
+
+			pointMode.onClick(MockCursorEvent({ lng: 0, lat: 0 }));
+
+			pointMode.onDragStart(MockCursorEvent({ lng: 0, lat: 0 }), jest.fn());
+
+			const id = mockConfig.onChange.mock.calls[0][0][0];
+
+			expect(
+				pointMode.styleFeature({
+					type: "Feature",
+					id,
+					geometry: { type: "Point", coordinates: [] },
+					properties: { mode: "point", edited: true },
+				}),
+			).toMatchObject({
+				pointColor: "#222222",
+				pointWidth: 3,
+				pointOutlineColor: "#555555",
+				pointOutlineWidth: 3,
 			});
 		});
 	});
